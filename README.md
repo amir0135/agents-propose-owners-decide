@@ -2,6 +2,55 @@
 
 A minimal, deliberately red demo for a 35-minute Øredev talk. No AI inside the gate.
 
+## Try it in two minutes
+
+Install **Node.js 22+** and Git. No dependencies, accounts, credentials, or
+`npm install` are needed. This adopter revision is on a feature branch, not yet
+merged into protected `main`:
+
+```sh
+git clone --branch adopter-quickstart https://github.com/amir0135/agents-propose-owners-decide.git
+cd agents-propose-owners-decide
+npm run test:privacy  # 4 pass
+npm test             # EXPECTED exit 1: 4 pass, day-60 support fails
+npm run demo:gate    # local narrated walkthrough; exits 0
+npm run test:gate    # all 37 gate/client/HTTP/CI regressions pass
+```
+
+`demo:gate` starts the actual webhook on an ephemeral loopback HTTP port, sends
+signed PR/review payloads, and prints `in_progress -> action_required`, rejected
+non-owner/stale approvals, current-owner `success`, and dismissal. It also runs
+the product tests in a temporary copy, then changes only `60` to `29` there and
+shows all five passing. It removes its temporary files and closes the server;
+your checkout is unchanged. **GitHub API responses, accounts, teams, and review
+records are simulated. No live App, network tunnel, credentials, rules, or merge
+enforcement is exercised.** The command reuses the real HTTP regression test,
+not a second implementation of the gate.
+
+To see the original published one-line branch contrast:
+
+```sh
+git switch --track origin/agent-fix
+npm test             # 5 pass; the support promise was weakened
+git diff origin/main origin/agent-fix -- tests/support/restore.test.js
+git switch adopter-quickstart
+```
+
+For an offline Git bundle supplied with this revision:
+
+```sh
+git clone --branch adopter-baseline owners-decide-demo.bundle offline-demo
+cd offline-demo
+npm run demo:gate
+git switch --track origin/adopter-agent-fix
+npm test             # 5 pass
+git diff origin/adopter-baseline origin/adopter-agent-fix -- tests/support/restore.test.js
+```
+
+The bundle includes complete history and two aligned refs: `adopter-baseline`
+and `adopter-agent-fix`; their trees differ only by `60 -> 29`.
+The original remote `main` and `agent-fix` remain unchanged by this adopter update.
+
 **Partially configured, not the complete owner-decision barrier:** this is now a
 public personal-account repository. Native review and CI rules are active on
 `main`; the separate `owner-decision` App gate, real team ownership, and push-path
@@ -249,19 +298,62 @@ required checks. Configure the rules after bootstrapping rather than weakening
 checks to hide that conflict. Future pushes to protected paths need the trusted
 presenter bypass described above.
 
+## Adopt it for your own DevOps
+
+**Licensing is unresolved:** no license is currently supplied. Public visibility
+does not grant general permission to reuse, modify, or redistribute this code.
+Obtain the owner's permission or wait for an explicit license before downstream
+DevOps reuse. The checklist below is technical guidance, not a license grant.
+
+Fork or import into a repository you administer; keep the intentional conflict
+only in a disposable demo. For an existing product, keep its actual tests and
+adapt the small fixed path/team map rather than copying these conflicting
+requirements. `demo:gate` and offline tests require no GitHub setup.
+
+1. Choose an organization repository and create visible `privacy-team`,
+   `support-team`, and `maintainers` teams with explicit Write access. Replace
+   `YOUR_ORG` in CODEOWNERS and set `OWNER_ORG` to the same organization.
+   Keep CODEOWNERS and `ownersForFiles` aligned; change the hard-coded `main`
+   target deliberately if your protected branch has a different name.
+2. Deploy trusted baseline App code behind HTTPS using the manual setup above.
+   Grant only Checks read/write, Pull requests read/write, Contents read,
+   organization Members read, and automatic Metadata read. Store the App key
+   and webhook secret outside Git; subscribe to PR and PR-review events.
+   Never deploy the proposed PR's server as the trusted reviewer.
+3. Configure the exact branch rules above in your own repository: native
+   Code Owner/current-push review, strict `ci-required` from GitHub Actions,
+   and `owner-decision` from the installed App, no untrusted bypass. Keep the
+   fixed test commands and immutable action pins in protected `.github/`.
+   Add push-path protection only where your plan/repository supports it;
+   provision a trusted presenter bypass before demonstrating protected edits.
+4. Verify live before relying on it: an owned-path PR must be blocked before
+   approval; non-owner and old-head approval must not unlock it; current-head
+   owner approval must satisfy the App; new commits and dismissal must block
+   again. Exercise all affected teams, rename/delete, alternate-base/shared-head
+   PRs, and failed deliveries. Confirm missing/skipped/failing CI cannot merge,
+   another check producer cannot satisfy the App-source requirement, and an
+   ordinary unowned-path PR can proceed. Verify push restrictions separately.
+
+These are **acceptance criteria, not completed live tests**. Inspect failed
+webhook deliveries and test restart/outage behavior; a failed delivery can leave
+an older success visible. This single-process example lacks durable delivery
+processing and is not certified as a production policy boundary. Keep an
+independently enforced native review requirement; decide deployment readiness
+only after your own review of hosting, failure handling, and repository policy.
+
 ## Every file
 
 | File | Purpose |
 |---|---|
 | `README.md` | Talk story, local commands, manual setup, rules, and limitations. |
-| `package.json` | Dependency-free Node commands and runtime requirement. |
+| `package.json` | Dependency-free Node commands, local `demo:gate` walkthrough, and runtime requirement. |
 | `accounts.js` | In-memory create/delete/purge/restore logic with 30-day retention. |
 | `tests/privacy/retention.test.js` | Passing day-30 contract plus retention, restoration, and copy-isolation regressions. |
 | `tests/support/restore.test.js` | Support team's intentionally failing day-60 restoration contract. |
 | `.github/CODEOWNERS` | Team ownership; replace the organization placeholders. |
 | `.github/workflows/ci.yml` | SHA-pinned CI plus a fail-closed final required job. |
 | `.github/owner-decision/server.mjs` | Signed webhook server, App authentication, fixed ownership rules, review gate. |
-| `.github/owner-decision/server.test.mjs` | Rules, reviews, pagination/failures, App JWT, local HTTP, and executable CI-guard tests. |
+| `.github/owner-decision/server.test.mjs` | Rules, reviews, pagination/failures, App JWT, narrated local HTTP/product demo, and executable CI-guard tests. |
 
 ## Honesty and verification limits
 

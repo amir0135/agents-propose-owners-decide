@@ -8,6 +8,7 @@
     "test:privacy": "node --test tests/privacy/*.test.js",
     "test:support": "node --test tests/support/*.test.js",
     "test:gate": "node --test .github/owner-decision/server.test.mjs",
+    "demo:gate": "node --test --test-reporter=spec --test-name-pattern=\"^local gate demo:\" .github/owner-decision/server.test.mjs",
     "owner-decision": "node .github/owner-decision/server.mjs"
   }
 }

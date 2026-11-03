@@ -281,9 +281,9 @@ test("GitHub client signs a valid JWT and surfaces token/API failures", async t 
   await assert.rejects(api("/repos/demo/repo/pulls/1"), SyntaxError);
 });
 
-test("real HTTP webhook handles signatures, routing, body limit, errors and recovery", async t => {
+test("local gate demo: real HTTP, simulated GitHub, and the weakened support promise", async t => {
   const secret = "local-http-test-secret";
-  const options = { reviews: [review("sam")] };
+  const options = { reviews: [] };
   const { api, writes } = fixture(options);
   let unavailable = false;
   const errors = t.mock.method(console, "error", () => {});
@@ -303,6 +303,7 @@ test("real HTTP webhook handles signatures, routing, body limit, errors and reco
         `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`,
     },
   });
+  t.diagnostic("SIMULATION: real loopback HTTP + signed webhooks; GitHub API, users, and teams are fixtures.");
   assert.equal((await fetch(url)).status, 404);
   assert.equal((await fetch(`${url}/wrong`, { method: "POST" })).status, 404);
   for (const signature of ["", "sha256=bad", `sha256=${"0".repeat(64)}`]) {
@@ -312,6 +313,23 @@ test("real HTTP webhook handles signatures, routing, body limit, errors and reco
   assert.equal((await post('{"action":"ignored"}', "ping")).status, 204);
   assert.equal((await post(JSON.stringify({ ...payload, action: "labeled" }))).status, 204);
   assert.equal(writes.length, 0);
+  assert.equal((await post(JSON.stringify(payload))).status, 200);
+  assert.equal(writes[0].body.status, "in_progress");
+  assert.equal(writes.at(-1).body.conclusion, "action_required");
+  t.diagnostic("PR opened: in_progress -> action_required; @demo/support-team is tagged.");
+  assert.match(writes[1].body.body, /@demo\/support-team/);
+  for (const [label, submitted] of [
+    ["non-owner", review("outsider")],
+    ["stale owner", review("sam", "APPROVED", "old-head")],
+    ["current-head owner", review("sam")],
+  ]) {
+    options.reviews.push(submitted);
+    assert.equal((await post(JSON.stringify({ ...payload, action: "submitted" }),
+      "pull_request_review")).status, 200);
+    const expected = label === "current-head owner" ? "success" : "action_required";
+    assert.equal(writes.at(-1).body.conclusion, expected);
+    t.diagnostic(`${label} approval: ${expected}.`);
+  }
   assert.equal((await post("{invalid-json")).status, 500);
   unavailable = true;
   assert.equal((await post(JSON.stringify(payload))).status, 500);
@@ -324,11 +342,43 @@ test("real HTTP webhook handles signatures, routing, body limit, errors and reco
   assert.equal((await post(JSON.stringify({ ...payload, action: "dismissed" }),
     "pull_request_review")).status, 200);
   assert.equal(writes.at(-1).body.conclusion, "action_required");
+  t.diagnostic("Owner dismissal: action_required.");
   options.reviews.push(review("sam"));
   assert.equal((await post(JSON.stringify({ ...payload, action: "submitted" }),
     "pull_request_review")).status, 200);
   assert.equal(writes.at(-1).body.conclusion, "success");
   assert.ok(errors.mock.callCount() >= 2);
+
+  const directory = mkdtempSync(join(tmpdir(), "owners-decide-product-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  for (const folder of ["tests/privacy", "tests/support"]) {
+    mkdirSync(join(directory, folder), { recursive: true });
+  }
+  for (const file of ["accounts.js", "package.json",
+    "tests/privacy/retention.test.js", "tests/support/restore.test.js"]) {
+    writeFileSync(join(directory, file), readFileSync(new URL(`../../${file}`, import.meta.url)));
+  }
+  const supportPath = join(directory, "tests/support/restore.test.js");
+  const baseline = readFileSync(supportPath, "utf8").replace('restore("ada", 29)', 'restore("ada", 60)');
+  assert.match(baseline, /restore\("ada", 60\)/);
+  writeFileSync(supportPath, baseline);
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  const productTests = () => spawnSync(process.execPath, ["--test",
+    "tests/privacy/retention.test.js", "tests/support/restore.test.js",
+  ], { cwd: directory, env, encoding: "utf8" });
+  const red = productTests();
+  assert.equal(red.status, 1, red.stdout + red.stderr);
+  assert.match(red.stdout, /# pass 4/);
+  assert.match(red.stdout, /# fail 1/);
+  assert.match(red.stdout, /Account data has been deleted/);
+  t.diagnostic("Unmodified product contract: privacy 4 pass; day-60 support 1 FAIL (intentional).");
+  writeFileSync(supportPath, baseline.replace('restore("ada", 60)', 'restore("ada", 29)'));
+  const green = productTests();
+  assert.equal(green.status, 0, green.stdout + green.stderr);
+  assert.match(green.stdout, /# pass 5/);
+  t.diagnostic("Temporary copy only: changing 60 -> 29 makes all 5 product tests PASS.");
+  t.diagnostic("Green CI is not owner consent. No repository files changed; no live merge controls were tested.");
 });
 
 test("one process serializes simultaneous deliveries rather than overlapping decisions", async () => {
