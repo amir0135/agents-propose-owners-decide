@@ -2,17 +2,26 @@
 
 A minimal, deliberately red demo for a 35-minute Øredev talk. No AI inside the gate.
 
+## The story (five lines)
+
+Privacy owns a test: delete personal data within 30 days.<br>
+Support owns a test: fully restore a deleted account on day 60.<br>
+With no personal-data copy retained, those promises conflict.<br>
+A coding agent makes CI green by changing the support test from 60 to 29.<br>
+Agents may propose that change; the affected owners must decide.
+
 ## Try it in two minutes
 
 Install **Node.js 22+** and Git. No dependencies, accounts, credentials, or
-`npm install` are needed. This adopter revision is on a feature branch, not yet
-merged into protected `main`:
+`npm install` are needed. Use this integrated walkthrough branch; the default
+`main` page has not been updated because publication requires an authorized
+review/bootstrap decision under its active no-bypass rules:
 
 ```sh
-git clone --branch adopter-quickstart https://github.com/amir0135/agents-propose-owners-decide.git
+git clone --branch demo-walkthrough https://github.com/amir0135/agents-propose-owners-decide.git
 cd agents-propose-owners-decide
-npm run test:privacy  # 4 pass
 npm test             # EXPECTED exit 1: 4 pass, day-60 support fails
+npm run test:privacy  # 4 pass
 npm run demo:gate    # local narrated walkthrough; exits 0
 npm run test:gate    # all 37 gate/client/HTTP/CI regressions pass
 ```
@@ -30,26 +39,17 @@ not a second implementation of the gate.
 To see the original published one-line branch contrast:
 
 ```sh
-git switch --track origin/agent-fix
+git switch --detach origin/agent-fix
 npm test             # 5 pass; the support promise was weakened
 git diff origin/main origin/agent-fix -- tests/support/restore.test.js
-git switch adopter-quickstart
+git switch demo-walkthrough
+npm run demo:gate    # back on the walkthrough branch
 ```
 
-For an offline Git bundle supplied with this revision:
-
-```sh
-git clone --branch adopter-baseline owners-decide-demo.bundle offline-demo
-cd offline-demo
-npm run demo:gate
-git switch --track origin/adopter-agent-fix
-npm test             # 5 pass
-git diff origin/adopter-baseline origin/adopter-agent-fix -- tests/support/restore.test.js
-```
-
-The bundle includes complete history and two aligned refs: `adopter-baseline`
-and `adopter-agent-fix`; their trees differ only by `60 -> 29`.
-The original remote `main` and `agent-fix` remain unchanged by this adopter update.
+The detached checkout is for inspection only; do not commit there. The original
+`agent-fix` does not contain `demo:gate`; switch back before running it. The
+original remote `main` and `agent-fix` are unchanged by this walkthrough update.
+No separately downloaded bundle or unpublished artifact is needed.
 
 **Partially configured, not the complete owner-decision barrier:** this is now a
 public personal-account repository. Native review and CI rules are active on
@@ -74,14 +74,6 @@ No organization transfer or real teams have been created; CODEOWNERS still has
 the intended team approvals. No push-path ruleset is configured. The steps below
 describe the remaining target setup, not controls already verified as enforcing
 the complete demo.
-
-## The story (five lines)
-
-Privacy owns a test: delete personal data within 30 days.<br>
-Support owns a test: fully restore a deleted account on day 60.<br>
-With no personal-data copy retained, those promises conflict.<br>
-A coding agent makes CI green by changing the support test from 60 to 29.<br>
-Agents may propose that change; the affected owners must decide.
 
 ## Run locally
 
