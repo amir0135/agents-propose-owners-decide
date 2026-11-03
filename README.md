@@ -142,28 +142,30 @@ the agent that bypass.
 
 ## Try the demo PR
 
-This worktree's implementation branch is the proposed baseline; merge it into
-`main` before the talk. The local `agent-fix` branch is based on that baseline
-and contains exactly one change: the support restore day `60` becomes `29`.
+The baseline is published on `main` in
+[amir0135/agents-propose-owners-decide](https://github.com/amir0135/agents-propose-owners-decide).
+The published `agent-fix` branch is based on that baseline and contains exactly
+one change: the support restore day `60` becomes `29`.
 
 ```sh
-git switch agent-fix
+git fetch origin
+git switch agent-fix             # or: git switch --track origin/agent-fix
 git diff agent-fix^ agent-fix -- tests/support/restore.test.js
 npm test                         # now green, but the promise was weakened
 npm run test:gate
-git push -u origin agent-fix      # trusted presenter bypass if push rule active
 ```
 
-After the baseline is on `main`, use **Pull requests → New pull request**, base
-`main`, compare `agent-fix`. CI becomes green, but `owner-decision` reports
+After configuring the App, owners, and rules above, use **Pull requests → New
+pull request**, base `main`, compare `agent-fix`. CI becomes green, but `owner-decision` reports
 **action required** and tags the support team. A current-head support-team review
 can satisfy that gate; native required review rules still apply. Use a separate
 eligible team member, not the PR author, to approve. Do not approve the weakened
 promise merely to finish the demo: a policy conflict needs a real owner decision.
 Use **Files changed** to show the single-number edit. No demo PR is opened here.
-The baseline itself intentionally has red CI; merging it under an already-active
-required-CI rule needs an explicitly authorized bootstrap exception. Configure
-the rules after bootstrapping rather than weakening checks to hide that conflict.
+The baseline itself intentionally has red CI; it was published before configuring
+required checks. Configure the rules after bootstrapping rather than weakening
+checks to hide that conflict. Future pushes to protected paths need the trusted
+presenter bypass described above.
 
 ## Every file
 
@@ -191,5 +193,6 @@ External behavior is not verified by offline tests: App creation/installation,
 key/token permissions, real team visibility and membership, public HTTPS webhook
 delivery, real review/dismissal events, check-source selection, ruleset plan
 availability/enforcement, push bypass, and an actual blocked/approved merge.
-No credentials, webhook registration, rulesets, remote branches, or PR are created
-by this implementation. Do not present these as configured or production-tested.
+The baseline and one-line demo branches are published remotely. No credentials,
+webhook registration, rulesets, or PR are created by this implementation.
+Do not present those external controls as configured or production-tested.
