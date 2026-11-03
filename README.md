@@ -2,13 +2,6 @@
 
 A minimal, deliberately red demo for a 35-minute Øredev talk. No AI inside the gate.
 
-**Not a configured merge barrier:** this is currently a private personal-account
-repository. Its rulesets API returned HTTP 403:
-“Upgrade to GitHub Pro or make this repository public to enable this feature.”
-Team CODEOWNERS also needs an organization repository. Visibility, plan, App
-installation, and permissions were not changed. Do not rely on merge protection
-until the manual setup below is available and verified end to end.
-
 ## The story (five lines)
 
 Privacy owns a test: delete personal data within 30 days.<br>
@@ -22,11 +15,24 @@ Agents may propose that change; the affected owners must decide.
 Use Node.js 22 or newer. No packages to install.
 
 ```sh
+npm test             # EXPECTED exit 1: privacy passes; day-60 support fails
 npm run test:privacy  # green: personal data is gone on day 30
 npm run test:support  # RED by design: restoration on day 60 is impossible
-npm test             # both folders run; exits nonzero intentionally
 npm run test:gate    # offline rules, real local HTTP, GitHub client, and CI-guard tests
 ```
+
+The failing support test is the point: making it green by changing `60` to `29`
+weakens a promise instead of resolving the teams' conflict.
+
+**Current live state:** this is a **public personal-account repository**.
+[The active `main` branch ruleset](https://github.com/amir0135/agents-propose-owners-decide/rules/26484745)
+requires one approving review, stale-approval dismissal, Code Owner review,
+last-push approval, and up-to-date `ci-required` from GitHub Actions (integration
+`15368`), with no bypass actors. The ruleset configuration was verified, not a
+live blocked/approved merge. The separate `owner-decision` App is not yet a
+required source-bound check; real organization teams, hosted HTTPS webhook, and
+push-path restrictions remain incomplete. CODEOWNERS still has placeholders.
+This is not yet the complete live owner-decision merge barrier.
 
 `Accounts` is an in-memory library, not a deployed service. Days are explicit
 integers relative to deletion on day 0; callers supply a monotonic clock.
@@ -79,7 +85,7 @@ Use `.github/CODEOWNERS`. Replace **every** `YOUR_ORG` with your organization.
 Create visible teams `privacy-team`, `support-team`, and `maintainers`, and give
 them explicit **Write** access to this repository. GitHub teams cannot own paths
 in a personal-account repository: use an organization repository for this
-team-based demo. The current personal-account repository is not configured.
+team-based demo. The current personal-account repository has no real team mapping.
 The last matching CODEOWNERS rule wins. Other `tests/` and `specs` changes belong
 to maintainers; renamed files require the old path's owners too.
 
@@ -160,7 +166,11 @@ and do not rely on this demo as a production authorization boundary.
 
 ## Exact repository rules to configure
 
-First install the App and trigger a PR event so GitHub has seen its check.
+The branch ruleset above already exists with native review and `ci-required`.
+The following describes the complete target configuration: edit the existing
+ruleset rather than creating a duplicate. First install the App and trigger a PR
+event so GitHub has seen its check; then add the source-restricted
+`owner-decision` requirement, which is not currently enabled.
 
 **Repository → Settings → Rules → Rulesets → New ruleset → New branch ruleset**
 
@@ -188,11 +198,12 @@ Then **Settings → Rules → Rulesets → New ruleset → New push ruleset**:
 
 **Important:** push rulesets depend on GitHub plan, repository visibility/type,
 and organization policy (notably private/internal repositories on supported paid
-organization plans). Rulesets are **currently unavailable** in this repository:
-the read-only rulesets API returned the HTTP 403 plan/visibility restriction
-quoted above. Upgrading a personal-account plan alone does not establish
-organization-team ownership or guarantee push-ruleset availability. Check your
-target repository's controls rather than assuming protection exists.
+organization plans). Branch rulesets are available and active now that this
+repository is public. That does not supply the private/internal organization
+push-ruleset feature: no push-path ruleset is configured here. A personal-account
+plan alone does not establish organization-team ownership or guarantee
+push-ruleset availability. Check your target repository's controls rather than
+assuming protection exists.
 
 A push restriction blocks a push even to a feature branch; owner approval does
 **not** bypass it. For the talk, the trusted presenter/maintainer must push the
@@ -259,18 +270,19 @@ The pinned v4 actions emitted upstream Node-20-runtime deprecation warnings;
 they did execute successfully, but their continued runner compatibility is not
 guaranteed.
 
-External behavior is not verified by offline tests: App creation/installation,
-key/token permissions, real team visibility and membership, public HTTPS webhook
-delivery, real review/dismissal events, check-source selection, ruleset plan
-availability/enforcement, push bypass, and an actual blocked/approved merge.
-For this repository, ruleset unavailability on the current plan was verified by
-HTTP 403; actual ruleset enforcement therefore was not tested. App installation
-status could not be established using the available user token (the App endpoint
-requires App JWT authentication), so installation remains unverified, not proven
-absent.
+Public visibility and the active native branch ruleset configuration were
+verified live. The former private-repository HTTP 403 ruleset restriction no
+longer applies. Actual blocked/approved merging was not tested.
+
+Still incomplete or unverified: App creation/installation and token permissions,
+real organization teams/membership, public HTTPS delivery, real review/dismissal
+events, source-bound `owner-decision`, push-path restrictions and bypass, and
+end-to-end merge enforcement. App installation status could not be established
+using the available user token (the App endpoint requires App JWT authentication),
+so installation remains unverified, not proven absent.
 The baseline and one-line demo branches are published remotely. No credentials,
-webhook registration, rulesets, or PR are created by this implementation.
-Do not present those external controls as configured or production-tested.
+webhook registration, organization transfer, real teams, push ruleset, or PR were
+created. Do not present those missing controls as configured or production-tested.
 Passing these executable checks is evidence for the stated demo behavior, not a
 claim that this server is safe to deploy as a production policy enforcement
 service. Real deployment requires separate review and end-to-end validation of
