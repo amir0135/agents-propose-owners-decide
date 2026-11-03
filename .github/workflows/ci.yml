@@ -1,0 +1,25 @@
+name: CI
+on:
+  pull_request:
+  push:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - run: npm run test:gate
+      - run: npm test
+  ci-required:
+    if: ${{ always() }}
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require tests to have run and passed
+        env:
+          TEST_RESULT: ${{ needs.tests.result }}
+        run: test "$TEST_RESULT" = success

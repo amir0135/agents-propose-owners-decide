@@ -1,0 +1,7 @@
+# Replace YOUR_ORG; visible teams must have explicit repository write access.
+/tests/ @YOUR_ORG/maintainers
+/tests/privacy/ @YOUR_ORG/privacy-team
+/tests/support/ @YOUR_ORG/support-team
+/specs @YOUR_ORG/maintainers
+/specs/ @YOUR_ORG/maintainers
+/.github/ @YOUR_ORG/maintainers

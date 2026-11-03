@@ -1,0 +1,13 @@
+{
+  "name": "agents-propose-owners-decide",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test tests/privacy/*.test.js tests/support/*.test.js",
+    "test:privacy": "node --test tests/privacy/*.test.js",
+    "test:support": "node --test tests/support/*.test.js",
+    "test:gate": "node --test .github/owner-decision/server.test.mjs",
+    "owner-decision": "node .github/owner-decision/server.mjs"
+  }
+}
