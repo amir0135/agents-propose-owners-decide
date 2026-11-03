@@ -62,7 +62,7 @@ export function githubClient(config) {
 async function list(api, path) {
   const items = [];
   for (let page = 1; ; page++) {
-    const batch = await api(`${path}?per_page=100&page=${page}`);
+    const batch = await api(`${path}${path.includes("?") ? "&" : "?"}per_page=100&page=${page}`);
     items.push(...batch);
     if (batch.length < 100) return items;
   }
@@ -70,13 +70,31 @@ async function list(api, path) {
 
 export async function reconcile(payload, config, api) {
   const repo = `/repos/${payload.repository.full_name}`;
-  const number = payload.pull_request.number;
-  const pr = await api(`${repo}/pulls/${number}`);
-  if (pr.state !== "open") return;
+  const eventPr = await api(`${repo}/pulls/${payload.pull_request.number}`);
+  const sha = eventPr.head.sha;
+  // Checks belong to commits, not PRs. Never let an alternate-base PR approve main.
+  const candidates = (await list(api, `${repo}/pulls?state=open&base=main`))
+    .filter(pr => pr.head.sha === sha);
+  if (!candidates.length) return;
   const check = await api(`${repo}/check-runs`, "POST", {
-    name: "owner-decision", head_sha: pr.head.sha, status: "in_progress",
+    name: "owner-decision", head_sha: sha, status: "in_progress",
     output: { title: "Evaluating owner decisions", summary: "Plain rules; no AI." },
   });
+  if (candidates.length !== 1) {
+    await api(`${repo}/check-runs/${check.id}`, "PATCH", {
+      status: "completed", conclusion: "action_required",
+      output: {
+        title: "Ambiguous shared PR head",
+        summary: "Multiple open PRs to main share this commit. Close duplicates or use distinct head commits.",
+      },
+    });
+    return;
+  }
+  const number = candidates[0].number;
+  const pr = await api(`${repo}/pulls/${number}`);
+  if (pr.state !== "open" || pr.base.ref !== "main" || pr.head.sha !== sha) {
+    throw new Error("PR changed during owner evaluation; redeliver the latest event");
+  }
   const files = await list(api, `${repo}/pulls/${number}/files`);
   // GitHub caps this endpoint at 3,000 files. Never approve a partial list.
   if (files.length !== pr.changed_files) throw new Error("Incomplete PR file list");
@@ -136,7 +154,7 @@ export function webhook(config, client = githubClient(config)) {
       const event = req.headers["x-github-event"];
       const payload = JSON.parse(body);
       const actions = event === "pull_request" ?
-        ["opened", "reopened", "synchronize", "ready_for_review", "edited"] :
+        ["opened", "reopened", "synchronize", "ready_for_review", "edited", "closed"] :
         event === "pull_request_review" ? ["submitted", "dismissed"] : [];
       if (!actions.includes(payload.action)) {
         res.writeHead(204).end();

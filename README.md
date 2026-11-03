@@ -2,6 +2,13 @@
 
 A minimal, deliberately red demo for a 35-minute Øredev talk. No AI inside the gate.
 
+**Not a configured merge barrier:** this is currently a private personal-account
+repository. Its rulesets API returned HTTP 403:
+“Upgrade to GitHub Pro or make this repository public to enable this feature.”
+Team CODEOWNERS also needs an organization repository. Visibility, plan, App
+installation, and permissions were not changed. Do not rely on merge protection
+until the manual setup below is available and verified end to end.
+
 ## The story (five lines)
 
 Privacy owns a test: delete personal data within 30 days.<br>
@@ -18,7 +25,7 @@ Use Node.js 22 or newer. No packages to install.
 npm run test:privacy  # green: personal data is gone on day 30
 npm run test:support  # RED by design: restoration on day 60 is impossible
 npm test             # both folders run; exits nonzero intentionally
-npm run test:gate    # offline deterministic webhook/rules tests
+npm run test:gate    # offline rules, real local HTTP, GitHub client, and CI-guard tests
 ```
 
 `Accounts` is an in-memory library, not a deployed service. Days are explicit
@@ -27,6 +34,42 @@ integers relative to deletion on day 0; callers supply a monotonic clock.
 There is no background scheduler, disk, backup, or hidden recovery copy. Day 29
 restores all original personal data; day 30 and later cannot. A real service needs
 an actual deletion scheduler and storage/backup policies; this demo has neither.
+
+### What the executable tests establish
+
+`npm run test:privacy` covers exact day-29/day-30 boundaries, a later deletion
+date, repeated delete without resetting retention, a second deletion after
+restoration, independent accounts, complete nested-data restoration, defensive
+copies, missing/duplicate accounts, and idempotent purge. Inputs must follow the
+documented integer-day/monotonic-clock convention; this is not an input-validation
+or persistent-storage service.
+
+`npm run test:gate` exercises owned, deleted, and renamed paths; all affected
+teams; non-owner and author rejection; stale, dismissed, changed, commented,
+pending, and renewed reviews; and closed/unowned PRs. It tests pagination of
+files/reviews/members beyond 100 entries, incomplete file lists including
+GitHub's 3,000-file cap, and errors at every API stage. App JWT signatures are
+verified using an ephemeral local RSA key; token/API HTTP, network, and malformed
+JSON failures are simulated. No real credentials or outbound GitHub requests
+are used by these tests. The CLI must refuse startup when any required App
+configuration value is absent.
+
+A real loopback HTTP server tests signatures, wrong routes, oversized bodies,
+ignored events, malformed JSON, approval/dismissal deliveries, error responses,
+and recovery after failure. The server is closed by the test. An additional
+concurrent-delivery test exercises the single-process queue. The test reads
+`ci.yml`, checks every action pin, and executes its actual shell guard with
+`success`, `failure`, `cancelled`, `skipped`, empty, and unexpected results.
+Only `success` passes. A temporary fixture changes package scripts to `exit 0`
+and proves that the protected workflow's direct commands still execute failing
+tests. Shared-head regressions cover alternate-base PRs, ambiguous `main` PRs,
+and re-evaluation after a duplicate closes. Tests do not simulate the GitHub
+Actions scheduler or prove that deployed repository controls cannot be bypassed.
+
+To reproduce the contrasting product result, run `npm test` on `main` (only
+support fails), then on `agent-fix` (all pass). Run `npm run test:gate` on both.
+Do not treat the intentional red baseline as a passing suite or turn the day-60
+assertion into an expected failure; that would hide the talk's conflict.
 
 ## Three steps
 
@@ -43,8 +86,10 @@ to maintainers; renamed files require the old path's owners too.
 ### 2. Lock what runs the tests
 
 Own `.github/`, including CODEOWNERS, the workflow, and the gate's source.
-CI runs the independent gate tests, then both product-test folders. Every action
-reference is a full commit SHA. `ci-required` uses `always()` and accepts only
+CI runs the independent gate tests, then both product-test folders, using fixed
+`node --test` commands in the protected workflow. It does not execute mutable
+`package.json` scripts or load Node options from an unowned config file. Every
+action reference is a full commit SHA. `ci-required` uses `always()` and accepts only
 `needs.tests.result == success`; skipped, cancelled, and failed test jobs fail it.
 Require this final check, not just individual test steps. If the **whole workflow**
 is skipped or missing, its required check must remain unsatisfied.
@@ -59,6 +104,15 @@ review, or a new commit removes that approval. A pending/unsubmitted review does
 not replace an existing submitted review. PRs without owned-path changes get
 success so a required check does not strand ordinary changes. A reviewer may
 satisfy multiple teams if they are a member of each. The PR author cannot approve.
+
+The demo enforces **only PRs targeting `main`**. Check runs belong to commits,
+not PRs: for every supported event the server finds open `main` PRs sharing that
+head SHA and evaluates their live data, never an alternate-base PR's diff or
+reviews. No matching `main` PR means no check is published. Multiple matching
+`main` PRs fail closed with `action_required`; close duplicates or use distinct
+head commits. Closing or retargeting a duplicate triggers re-evaluation of the
+remaining `main` PR. This deliberately conservative rule avoids publishing one
+PR's success over another PR's requirements. It is not a multi-base policy engine.
 
 These are fixed path/team rules matching this demo's CODEOWNERS, **not** a general
 CODEOWNERS parser. Keep both mappings aligned. Membership and reviews are read
@@ -99,6 +153,10 @@ with no durable queue, retries, scaling, or production hosting included. Existin
 open PRs need a new event after installation. Membership changes alone do not
 trigger evaluation; send a fresh review/PR event. API pagination is supported;
 PRs exceeding GitHub's 3,000-file list cap fail closed.
+If a delivery fails before a new check is created, a previous successful check
+may still be visible. These tests do not establish atomic revocation of a
+previous decision across API outages or lost deliveries. Monitor deliveries
+and do not rely on this demo as a production authorization boundary.
 
 ## Exact repository rules to configure
 
@@ -130,9 +188,11 @@ Then **Settings → Rules → Rulesets → New ruleset → New push ruleset**:
 
 **Important:** push rulesets depend on GitHub plan, repository visibility/type,
 and organization policy (notably private/internal repositories on supported paid
-organization plans); they may not be offered here. Check your repository's
-available ruleset controls rather than assuming this protection exists. Branch
-ruleset availability also depends on plan/visibility.
+organization plans). Rulesets are **currently unavailable** in this repository:
+the read-only rulesets API returned the HTTP 403 plan/visibility restriction
+quoted above. Upgrading a personal-account plan alone does not establish
+organization-team ownership or guarantee push-ruleset availability. Check your
+target repository's controls rather than assuming protection exists.
 
 A push restriction blocks a push even to a feature branch; owner approval does
 **not** bypass it. For the talk, the trusted presenter/maintainer must push the
@@ -174,12 +234,12 @@ presenter bypass described above.
 | `README.md` | Talk story, local commands, manual setup, rules, and limitations. |
 | `package.json` | Dependency-free Node commands and runtime requirement. |
 | `accounts.js` | In-memory create/delete/purge/restore logic with 30-day retention. |
-| `tests/privacy/retention.test.js` | Privacy team's passing day-30 deletion contract. |
+| `tests/privacy/retention.test.js` | Passing day-30 contract plus retention, restoration, and copy-isolation regressions. |
 | `tests/support/restore.test.js` | Support team's intentionally failing day-60 restoration contract. |
 | `.github/CODEOWNERS` | Team ownership; replace the organization placeholders. |
 | `.github/workflows/ci.yml` | SHA-pinned CI plus a fail-closed final required job. |
 | `.github/owner-decision/server.mjs` | Signed webhook server, App authentication, fixed ownership rules, review gate. |
-| `.github/owner-decision/server.test.mjs` | Offline tests of rules, approvals, reconciliation, and webhook signatures. |
+| `.github/owner-decision/server.test.mjs` | Rules, reviews, pagination/failures, App JWT, local HTTP, and executable CI-guard tests. |
 
 ## Honesty and verification limits
 
@@ -189,10 +249,29 @@ That sentence reports the talk author's experiment, not an experiment reproduced
 by this repository. The intended local result is privacy green/support red on the
 baseline and both green on `agent-fix`.
 
+The original published baseline and demo were also run on GitHub Actions:
+[baseline run](https://github.com/amir0135/agents-propose-owners-decide/actions/runs/41678460492)
+failed at the support test and `ci-required`, while
+[demo run](https://github.com/amir0135/agents-propose-owners-decide/actions/runs/41678477035)
+passed both jobs. Those historical runs do not establish that later revisions,
+skipped-workflow behavior, or required-check enforcement were tested on GitHub.
+The pinned v4 actions emitted upstream Node-20-runtime deprecation warnings;
+they did execute successfully, but their continued runner compatibility is not
+guaranteed.
+
 External behavior is not verified by offline tests: App creation/installation,
 key/token permissions, real team visibility and membership, public HTTPS webhook
 delivery, real review/dismissal events, check-source selection, ruleset plan
 availability/enforcement, push bypass, and an actual blocked/approved merge.
+For this repository, ruleset unavailability on the current plan was verified by
+HTTP 403; actual ruleset enforcement therefore was not tested. App installation
+status could not be established using the available user token (the App endpoint
+requires App JWT authentication), so installation remains unverified, not proven
+absent.
 The baseline and one-line demo branches are published remotely. No credentials,
 webhook registration, rulesets, or PR are created by this implementation.
 Do not present those external controls as configured or production-tested.
+Passing these executable checks is evidence for the stated demo behavior, not a
+claim that this server is safe to deploy as a production policy enforcement
+service. Real deployment requires separate review and end-to-end validation of
+the App, hosting, delivery/failure handling, and repository controls above.
