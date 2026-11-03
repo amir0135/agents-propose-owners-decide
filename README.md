@@ -210,7 +210,7 @@ one change: the support restore day `60` becomes `29`.
 ```sh
 git fetch origin
 git switch agent-fix             # or: git switch --track origin/agent-fix
-git diff agent-fix^ agent-fix -- tests/support/restore.test.js
+git diff origin/main agent-fix -- tests/support/restore.test.js
 npm test                         # now green, but the promise was weakened
 npm run test:gate
 ```
