@@ -4,6 +4,7 @@
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
+    "demo": "node .github/talk.mjs",
     "test": "node --test tests/privacy/*.test.js tests/support/*.test.js",
     "test:privacy": "node --test tests/privacy/*.test.js",
     "test:support": "node --test tests/support/*.test.js",

@@ -10,7 +10,7 @@ With no personal-data copy retained, those promises conflict.<br>
 A coding agent makes CI green by changing the support test from 60 to 29.<br>
 Agents may propose that change; the affected owners must decide.
 
-## Try it in two minutes
+## Try the interactive demo
 
 Install **Node.js 22+** and Git. No dependencies, accounts, credentials, or
 `npm install` are needed. Use this integrated walkthrough branch; the default
@@ -18,12 +18,28 @@ Install **Node.js 22+** and Git. No dependencies, accounts, credentials, or
 review/bootstrap decision under its active no-bypass rules:
 
 ```sh
-git clone --branch demo-walkthrough https://github.com/amir0135/agents-propose-owners-decide.git
+git clone --branch interactive-talk https://github.com/amir0135/agents-propose-owners-decide.git
 cd agents-propose-owners-decide
+npm run demo         # guided terminal: choose, test, and try owner approvals
+```
+
+Press Enter to see the conflict. Choose **1** to try `60 -> 29` in a temporary
+copy, or **2** to keep the original contract. Try **n** (non-owner), **s** (stale
+owner), then **o** (current-head owner). Only the last simulated approval counts.
+Use **q**, Ctrl-C, or end of input to cancel. Invalid choices prompt again.
+Nothing is edited in your checkout; temporary files are removed.
+
+**Owner decisions are simulated**, using the same plain approval rules as the
+gate. This terminal command makes no GitHub API calls and does not demonstrate
+configured live merge enforcement. Green CI is not owner consent.
+
+### Optional checks and HTTP walkthrough
+
+```sh
 npm test             # EXPECTED exit 1: 4 pass, day-60 support fails
 npm run test:privacy  # 4 pass
 npm run demo:gate    # local narrated walkthrough; exits 0
-npm run test:gate    # all 37 gate/client/HTTP/CI regressions pass
+npm run test:gate    # all 39 terminal/gate/client/HTTP/CI regressions pass
 ```
 
 `demo:gate` starts the actual webhook on an ephemeral loopback HTTP port, sends
@@ -42,7 +58,7 @@ To see the original published one-line branch contrast:
 git switch --detach origin/agent-fix
 npm test             # 5 pass; the support promise was weakened
 git diff origin/main origin/agent-fix -- tests/support/restore.test.js
-git switch demo-walkthrough
+git switch interactive-talk
 npm run demo:gate    # back on the walkthrough branch
 ```
 
@@ -338,7 +354,8 @@ only after your own review of hosting, failure handling, and repository policy.
 | File | Purpose |
 |---|---|
 | `README.md` | Talk story, local commands, manual setup, rules, and limitations. |
-| `package.json` | Dependency-free Node commands, local `demo:gate` walkthrough, and runtime requirement. |
+| `package.json` | Dependency-free commands: interactive `demo`, HTTP `demo:gate`, tests, and App server. |
+| `.github/talk.mjs` | Guided terminal choices, disposable red/green test copy, and explicitly simulated owner decisions. |
 | `accounts.js` | In-memory create/delete/purge/restore logic with 30-day retention. |
 | `tests/privacy/retention.test.js` | Passing day-30 contract plus retention, restoration, and copy-isolation regressions. |
 | `tests/support/restore.test.js` | Support team's intentionally failing day-60 restoration contract. |

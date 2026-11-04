@@ -4,10 +4,72 @@ import { createServer } from "node:http";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { Readable } from "node:stream";
 import test from "node:test";
 import { approvedTeams, githubClient, ownersForFiles, reconcile, webhook } from "./server.mjs";
+
+test("interactive talk covers choices, invalid input, cancellation and leaves source untouched", () => {
+  const file = new URL("../../tests/support/restore.test.js", import.meta.url);
+  const original = readFileSync(file, "utf8");
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  for (const [input, expected] of [
+    ["\n1\nn\ns\no\n", /SIMULATED owner-decision: success/],
+    ["\n2\n", /Contract kept/],
+    ["bad\n\nbad\n1\nbad\no\n", /SIMULATED owner-decision: success/],
+    ["q\n", /Demo cancelled/],
+    ["\nq\n", /Demo cancelled/],
+    ["\n1\nq\n", /Demo cancelled/],
+    ["", /Demo cancelled/],
+    ["\n", /Demo cancelled/],
+    ["\n1\n", /Demo cancelled/],
+  ]) {
+    const actual = spawnSync(process.execPath, [new URL("../talk.mjs", import.meta.url).pathname], {
+      input, env, encoding: "utf8", timeout: 10000,
+    });
+
+    assert.equal(actual.status, 0, actual.stdout + actual.stderr);
+    assert.match(actual.stdout, expected);
+    assert.match(actual.stdout, /Checkout unchanged/);
+    if (input.includes("n\ns\n")) {
+      assert.equal(actual.stdout.match(/That approval does not count/g).length, 2);
+    }
+    assert.equal(readFileSync(file, "utf8"), original);
+  }
+});
+
+test("interactive talk cancels cleanly on Ctrl-C", async () => {
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  const child = spawn(process.execPath, [new URL("../talk.mjs", import.meta.url).pathname], {
+    env, stdio: ["pipe", "pipe", "pipe"],
+  });
+  let output = "";
+  let interrupted = false;
+  const result = new Promise((resolve, reject) => {
+    child.on("error", reject);
+    child.on("close", (code, signal) => resolve({ code, signal }));
+  });
+  child.stdout.on("data", chunk => {
+    output += chunk;
+    if (!interrupted && output.includes("Press Enter")) {
+      interrupted = true;
+      child.kill("SIGINT");
+    }
+  });
+  const timer = setTimeout(() => child.kill("SIGKILL"), 10000);
+  try {
+    const { code, signal } = await result;
+    assert.equal(code, 0, output);
+    assert.equal(signal, null);
+    assert.match(output, /Demo cancelled/);
+    assert.match(output, /Checkout unchanged/);
+  } finally {
+    clearTimeout(timer);
+    child.stdin.end();
+  }
+});
 
 test("owned paths include renamed-away paths and do not match lookalikes", () => {
   assert.deepEqual(ownersForFiles([
